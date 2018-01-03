@@ -12,7 +12,7 @@ import urllib
 import urlparse
 import requests
 import sys
-from pymongo import Connection
+from pymongo import MongoClient
 import xlwt
 import StringIO
 import ftplib
@@ -37,7 +37,7 @@ font1.bold = False
 style1 = xlwt.XFStyle()
 style1.font = font1
 
-conn = Connection(host=main_db_host)
+conn = MongoClient(host=main_db_host)
 db = conn.getmyad_db
 date = datetime.datetime.now()
 date = datetime.datetime(date.year, date.month, date.day, 0, 0)
@@ -141,9 +141,8 @@ for account_id in acc:
     buf = StringIO.StringIO()
     wbk.save(buf)
     buf.seek(0)
-    ftp = ftplib.FTP(host='srv-3.yottos.com')
+    ftp = ftplib.FTP(host='srv-10.yottos.com')
     ftp.login('cdn', '$www-app$')
-    ftp.cwd('httpdocs')
     ftp.cwd('report')
     ftp.storbinary('STOR ' + str(account_id) + '.xls', buf)
     ftp.close()

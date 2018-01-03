@@ -220,9 +220,8 @@ for key, value in data.iteritems(): #account
     buf = StringIO.StringIO()
     wb.save(buf)
     buf.seek(0)
-    ftp = ftplib.FTP(host='srv-7.yottos.com')
+    ftp = ftplib.FTP(host='srv-10.yottos.com')
     ftp.login('cdn', '$www-app$')
-    chdir(ftp, 'httpdocs')
     chdir(ftp, 'report')
     chdir(ftp, 'click')
     chdir(ftp, '%s-%s-%s' % (date_start.year, date_start.month, date_start.day))
@@ -251,9 +250,8 @@ html = '''
 ''' % ('%s-%s-%s' % (date_end.year, date_end.month, date_end.day),
        '%s-%s-%s' % (date_start.year, date_start.month, date_start.day),
        html_tr.encode('utf-8'))
-ftp = ftplib.FTP(host='srv-7.yottos.com')
+ftp = ftplib.FTP(host='srv-10.yottos.com')
 ftp.login('cdn', '$www-app$')
-chdir(ftp, 'httpdocs')
 chdir(ftp, 'report')
 chdir(ftp, 'click')
 ftp.storbinary('STOR index.html',  StringIO.StringIO(html))
