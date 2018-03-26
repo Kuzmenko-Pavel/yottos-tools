@@ -19,6 +19,8 @@ from openpyxl.styles import Font, Alignment
 import StringIO
 import ftplib
 import requests
+import urllib3.contrib.pyopenssl
+urllib3.contrib.pyopenssl.inject_into_urllib3()
 
 
 sys.stdout = sys.stderr
@@ -46,19 +48,20 @@ def mssql_connection_adload():
 
     """
     pymssql.set_max_connections(450)
-    conn = pymssql.connect(host='srv-1.yottos.com',
+    conn = pymssql.connect(host='srv-3.yottos.com',
                            user='web',
                            password='odif8duuisdofj',
-                           database='1gb_YottosAdLoad',
+                           database='AdLoad',
                            as_dict=True,
                            charset='cp1251')
     conn.autocommit(True)
     return conn
 
+
 accounts = defaultdict(lambda: 'NOT TITLE')
 connection_adload = mssql_connection_adload()
 cursor = connection_adload.cursor()
-cursor.execute('''SELECT lower([UserID]) as UserID, [Login] FROM [1gb_YottosAdLoad].[dbo].[Users]''')
+cursor.execute('''SELECT lower([UserID]) as UserID, [Login] FROM [AdLoad].[dbo].[Users]''')
 for row in cursor:
     accounts[row['UserID']] = row['Login'].decode('utf-8')
 cursor.close()
@@ -225,11 +228,15 @@ for key, value in data.iteritems(): #account
     chdir(ftp, 'report')
     chdir(ftp, 'click')
     chdir(ftp, '%s-%s-%s' % (date_start.year, date_start.month, date_start.day))
-    ftp.storbinary('STOR ' + str(key) + '.xlsx', buf)
+    ftp.storbinary('STOR ' + str(key) + '_%s-%s-%s' % (date_start.year, date_start.month, date_start.day) + '.xlsx', buf)
     ftp.close()
     acl.append(key)
 
-html_tr = ' \n'.join(['<tr><td><a href="%s">%s</a></td></tr>' % ('https://cdn.yottos.com/report/click/%s-%s-%s/%s.xlsx' % (date_start.year, date_start.month, date_start.day, x), accounts[x]) for x in acl])
+html_tr = ' \n'.join(['<tr><td><a href="%s">%s</a></td></tr>' % (
+    'https://cdn.yottos.com/report/click/%s-%s-%s/%s%s.xlsx' % (
+        date_start.year, date_start.month, date_start.day, x, '_%s-%s-%s' % (date_start.year, date_start.month, date_start.day)
+    ), accounts[x]
+) for x in acl])
 html = '''
 <html>
 <head><title>Отчеты</title></head>
@@ -260,11 +267,16 @@ ftp.close()
 print('Report upload')
 time.sleep(400)
 headers = {'X-Cache-Update': '1'}
-cdns = ['cdn.srv-10.yottos.com', 'cdn.srv-11.yottos.com', 'cdn.srv-12.yottos.com']
+cdns = ['cdn.srv-10.yottos.com', 'cdn.srv-11.yottos.com', 'cdn.srv-12.yottos.com', 'cdn.yottos.com']
 
 for cdn in cdns:
     for item in acl:
-        url = 'http://%s%s' % (cdn, '/report/click/%s-%s-%s/%s.xlsx' % (date_start.year, date_start.month, date_start.day, item))
+        url = 'http://%s%s' % (cdn, '/report/click/%s-%s-%s/%s%s.xlsx' % (
+            date_start.year,
+            date_start.month,
+            date_start.day,
+            item,
+            '_%s-%s-%s' % (date_start.year, date_start.month, date_start.day)))
         r = requests.get(url, headers=headers, verify=False)
         print('%s - %s' % (url, r.status_code))
     url = 'http://%s%s' % (cdn, '/report/click/index.html')
