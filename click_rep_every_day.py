@@ -267,11 +267,11 @@ ftp.close()
 print('Report upload')
 time.sleep(400)
 headers = {'X-Cache-Update': '1'}
-cdns = ['cdn.srv-10.yottos.com', 'cdn.srv-11.yottos.com', 'cdn.srv-12.yottos.com', 'cdn.yottos.com']
+cdns = ['http://cdn.srv-10.yottos.com', 'http://cdn.srv-11.yottos.com', 'http://cdn.srv-12.yottos.com', 'http://cdn.yottos.com', 'https://cdn.yottos.com']
 
 for cdn in cdns:
     for item in acl:
-        url = 'http://%s%s' % (cdn, '/report/click/%s-%s-%s/%s%s.xlsx' % (
+        url = '%s%s' % (cdn, '/report/click/%s-%s-%s/%s%s.xlsx' % (
             date_start.year,
             date_start.month,
             date_start.day,
@@ -279,7 +279,7 @@ for cdn in cdns:
             '_%s-%s-%s' % (date_start.year, date_start.month, date_start.day)))
         r = requests.get(url, headers=headers, verify=False)
         print('%s - %s' % (url, r.status_code))
-    url = 'http://%s%s' % (cdn, '/report/click/index.html')
+    url = '%s%s' % (cdn, '/report/click/index.html')
     r = requests.get(url, headers=headers, verify=False)
     print('%s - %s' % (url, r.status_code))
 print('Report create complite')
