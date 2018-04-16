@@ -239,7 +239,7 @@ html_tr = ' \n'.join(['<tr><td><a href="%s">%s</a></td></tr>' % (
 ) for x in acl])
 html = '''
 <html>
-<head><title>Отчеты</title></head>
+<head><title>Отчеты с %s по %s</title></head>
 <body bgcolor="white">
 <hr>
 <center>
@@ -255,6 +255,8 @@ html = '''
 </body>
 </html>
 ''' % ('%s-%s-%s' % (date_end.year, date_end.month, date_end.day),
+       '%s-%s-%s' % (date_start.year, date_start.month, date_start.day),
+       '%s-%s-%s' % (date_end.year, date_end.month, date_end.day),
        '%s-%s-%s' % (date_start.year, date_start.month, date_start.day),
        html_tr.encode('utf-8'))
 ftp = ftplib.FTP(host='srv-10.yottos.com')
