@@ -25,7 +25,7 @@ pipeline = [
 ]
 
 cur = db.stats_daily.rating.aggregate(pipeline=pipeline, cursor={}, allowDiskUse=True)
-
+count = 0
 for doc in cur:
     if len(doc['ids']) == 2:
         try:
@@ -68,13 +68,14 @@ for doc in cur:
                     db.stats_daily.rating.save(first)
                     db.stats_daily.rating.delete_one({'_id': second['_id']})
                 else:
+                    count +=1
                     pass
                     #print first, second
         except Exception as e:
             print e
 
 
-
+print count
 
 # cur = db.domain.find({})
 # for doc in cur:
