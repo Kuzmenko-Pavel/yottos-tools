@@ -28,46 +28,50 @@ cur = db.stats_daily.rating.aggregate(pipeline=pipeline, cursor={}, allowDiskUse
 
 for doc in cur:
     if len(doc['ids']) == 2:
-        first = db.stats_daily.rating.find_one({'_id': doc['ids'][0]['id']})
-        second = db.stats_daily.rating.find_one({'_id': doc['ids'][1]['id']})
-        if first and second:
-            full_impressions = int(second.get('full_impressions', 0)) + int(first.get('full_impressions', 0))
-            impressions = int(second.get('impressions', 0)) + int(first.get('impressions', 0))
-            old_impressions = int(second.get('old_impressions', 0)) + int(first.get('old_impressions', 0))
-            clicks = int(second.get('clicks', 0)) + int(first.get('clicks', 0))
-            full_clicks = int(second.get('full_clicks', 0)) + int(first.get('full_clicks', 0))
-            old_clicks = int(second.get('old_clicks', 0)) + int(first.get('old_clicks', 0))
-            f_rating = first.get('rating', 0)
-            f_full_rating = first.get('full_rating', 0)
-            s_rating = second.get('rating', 0)
-            s_full_rating = second.get('full_rating', 0)
-            if uuid_to_long(second['guid']) == long(second['guid_int']):
-                print 'S', second['guid_int'], '-', first['guid_int'], '-', second['guid'], '-', first['guid']
-                second['full_impressions'] = full_impressions
-                second['impressions'] = impressions
-                second['old_impressions'] = old_impressions
-                second['clicks'] = clicks
-                second['full_clicks'] = full_clicks
-                second['old_clicks'] = old_clicks
-                second['rating'] = f_rating
-                second['full_rating'] = f_full_rating
-                db.stats_daily.rating.save(second)
-                db.stats_daily.rating.delete_one({'_id': first['_id']})
+        try:
+            first = db.stats_daily.rating.find_one({'_id': doc['ids'][0]['id']})
+            second = db.stats_daily.rating.find_one({'_id': doc['ids'][1]['id']})
+            if first and second:
+                full_impressions = int(second.get('full_impressions', 0)) + int(first.get('full_impressions', 0))
+                impressions = int(second.get('impressions', 0)) + int(first.get('impressions', 0))
+                old_impressions = int(second.get('old_impressions', 0)) + int(first.get('old_impressions', 0))
+                clicks = int(second.get('clicks', 0)) + int(first.get('clicks', 0))
+                full_clicks = int(second.get('full_clicks', 0)) + int(first.get('full_clicks', 0))
+                old_clicks = int(second.get('old_clicks', 0)) + int(first.get('old_clicks', 0))
+                f_rating = first.get('rating', 0)
+                f_full_rating = first.get('full_rating', 0)
+                s_rating = second.get('rating', 0)
+                s_full_rating = second.get('full_rating', 0)
+                if uuid_to_long(second['guid']) == long(second['guid_int']):
+                    print 'S', second['guid_int'], '-', first['guid_int'], '-', second['guid'], '-', first['guid']
+                    second['full_impressions'] = full_impressions
+                    second['impressions'] = impressions
+                    second['old_impressions'] = old_impressions
+                    second['clicks'] = clicks
+                    second['full_clicks'] = full_clicks
+                    second['old_clicks'] = old_clicks
+                    second['rating'] = f_rating
+                    second['full_rating'] = f_full_rating
+                    db.stats_daily.rating.save(second)
+                    db.stats_daily.rating.delete_one({'_id': first['_id']})
 
-            elif uuid_to_long(first['guid']) == long(first['guid_int']):
-                print 'F', first['guid_int'], '-', second['guid_int'], '-', first['guid'], '-', second['guid']
-                first['full_impressions'] = full_impressions
-                first['impressions'] = impressions
-                first['old_impressions'] = old_impressions
-                first['clicks'] = clicks
-                first['full_clicks'] = full_clicks
-                first['old_clicks'] = old_clicks
-                first['rating'] = s_rating
-                first['full_rating'] = s_full_rating
-                db.stats_daily.rating.save(first)
-                db.stats_daily.rating.delete_one({'_id': second['_id']})
-            else:
-                print first, second
+                elif uuid_to_long(first['guid']) == long(first['guid_int']):
+                    print 'F', first['guid_int'], '-', second['guid_int'], '-', first['guid'], '-', second['guid']
+                    first['full_impressions'] = full_impressions
+                    first['impressions'] = impressions
+                    first['old_impressions'] = old_impressions
+                    first['clicks'] = clicks
+                    first['full_clicks'] = full_clicks
+                    first['old_clicks'] = old_clicks
+                    first['rating'] = s_rating
+                    first['full_rating'] = s_full_rating
+                    db.stats_daily.rating.save(first)
+                    db.stats_daily.rating.delete_one({'_id': second['_id']})
+                else:
+                    pass
+                    #print first, second
+        except Exception as e:
+            print e
 
 
 
