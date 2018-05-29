@@ -44,5 +44,5 @@ def calc(db, dateS, dateE):
 
 
 dateS = datetime.datetime(2018, 02, 27, 0, 0)
-dateE = datetime.datetime(2018, 04, 04, 0, 0)
+dateE = datetime.datetime(2018, 04, 20, 0, 0)
 calc(db, dateS, dateE)
