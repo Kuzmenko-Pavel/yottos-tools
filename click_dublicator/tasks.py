@@ -6,7 +6,6 @@ import uuid
 
 import dateutil.parser
 import pymongo
-from celery.task import task
 
 MONGO_HOST = 'srv-5.yottos.com:27018,srv-5.yottos.com:27019,srv-5.yottos.com:27020'
 
@@ -186,7 +185,6 @@ def _partner_click_cost(db, informer_id, adload_cost):
     return cost
 
 
-@task
 def process_click(url,
                   ip,
                   click_datetime,
@@ -198,39 +196,11 @@ def process_click(url,
                   referer,
                   user_agent,
                   cookie,
-                  view_seconds):
-    """ Обработка клика пользователя по рекламному предложению.
-
-        Задача ставится в очередь скриптом redirect.py или выполняется
-        немедленно при недоступности Celery.
-
-        В процессе обработки:
-
-        1. IP ищется в чёрном списке.
-
-        2. Проверяется, что по ссылке переходит тот же ip, которому она была
-           выдана.
-
-        3. Проверяется, что ссылка ещё не устарела.
-
-        4. Если ip сделал больше трёх переходов за сутки, ip заносится в чёрный
-           список.
-
-        5. Клик передаётся в AdLoad.
-
-        6. Только если все предыдущие пункты отработали нормально, клик
-           записывается в GetMyAd. В противном случае, делается запись либо
-           в ``clicks.rejected`` (отклонённые клики), либо в ``clicks.error``
-           (клики, во время обработки которых произошла ошибка).
-
-        ERROR ID LIST
-        1 - Несовпадает Токен и IP
-        2 - Найден в Чёрном списке IP
-        3 - Более 3 переходов с РБ за сутки
-        4 - Более 10 переходов с РБ за неделю
-        5 - Более 5 переходов с ПС за сутки
-        6 - Более 10 переходов с ПС за неделю
-    """
+                  view_seconds,
+                  branch,
+                  conformity,
+                  social,
+                  request):
     print "/----------------------------------------------------------------------/"
     print "process click %s \t %s" % (ip, click_datetime)
     if not isinstance(click_datetime, datetime.datetime):
@@ -261,54 +231,12 @@ def process_click(url,
         'time_filter_click': 15,
         'cost_percent_click': 100
     }
-    find = False
     account_id = ''
-    social = False
-    branch = 'L0'
-    conformity = ''
-    request = ''
-    test = False
     error_id = 0
     manager = ''
     manager_g = ''
     getmyad_user_id = ''
 
-    for db2 in pool:
-        if find:
-            break
-        try:
-            for x in db2.log.impressions.find({'token': token}):
-                if x['ip'] == ip and x['id'] == offer_id:
-                    social = x.get('social', False)
-                    branch = x.get('branch', '')
-                    conformity = x.get('conformity', '')
-                    test = x.get('test', False)
-                    request = x.get('request', '')
-                    find = True
-                    break
-
-            if find:
-                break
-        except Exception as e:
-            print e
-            pass
-
-    if test:
-        print "Processed test click from ip %s" % ip
-        return
-
-    if not find:
-        print "Processed click from token %s not found" % token
-        log_reject(u'Not found click')
-
-    if referer is None:
-        print "Without Referer"
-        log_reject(u'Without Referer')
-    if user_agent is None:
-        print "Without User Agent"
-        log_reject(u'Without User Agent')
-
-    # Определяем кампанию, к которой относится предложение и т.п
     try:
         campaign = db.campaign.find_one({'guid': campaign_id}, {'manager': True, 'account': True, '_id': False})
         account_id = campaign.get('account', '')
@@ -324,18 +252,6 @@ def process_click(url,
         manager_g = account_g.get("managerGet", "")
         check_block['cost_percent_click'] = account_g.get('cost_percent_click', 100)
         check_block['time_filter_click'] = account_g.get('time_filter_click', 15)
-        blocking = account_g.get('blocked', False)
-        if blocking:
-            if blocking == 'banned':
-                check_block['block'] = True
-            elif blocking == 'light':
-                check_block['block'] = True
-            elif blocking == 'filter':
-                check_block['block'] = False
-                check_block['filter'] = True
-            else:
-                check_block['block'] = False
-
     except Exception as e:
         print e
 
@@ -388,201 +304,19 @@ def process_click(url,
     except Exception as e:
         print e
 
-    if not valid:
-        error_id = 1
-        log_reject(u'Не совпадает токен или ip')
-        print "token ip false click rejected"
-        return
-
-    # Ищём IP в чёрном списке
-    if db.blacklist.ip.find_one({'ip': ip}):
-        error_id = 2
-        print "Blacklisted ip:", ip
-        log_reject("Blacklisted ip")
-        db.blacklist.ip.update_one({'ip': ip},
-                                   {'$set': {'dt': datetime.datetime.now()}},
-                                   upsert=True)
-        return
-
-    # Ищем, не было ли кликов по этому товару
-    # Заодно проверяем ограничение на max_clicks_for_one_day переходов в сутки
-    # (защита от накруток)
-    max_clicks_for_one_day = 3
-    max_clicks_for_one_day_all = 5
-    max_clicks_for_one_week = 10
-    max_clicks_for_one_week_all = 15
-    ip_max_clicks_for_one_day = 6
-    ip_max_clicks_for_one_day_all = 10
-    ip_max_clicks_for_one_week = 20
-    ip_max_clicks_for_one_week_all = 30
-    unique = True
-
-    # Проверяе по рекламному блоку за день и неделю
-    today_clicks = 0
-    toweek_clicks = 0
-
-    # Проверяе по ПС за день и неделю
-    today_clicks_all = 0
-    toweek_clicks_all = 0
-
-    # Проверяе по рекламному блоку за день и неделю по ip
-    ip_today_clicks = 0
-    ip_toweek_clicks = 0
-
-    # Проверяе по ПС за день и неделю по ip
-    ip_today_clicks_all = 0
-    ip_toweek_clicks_all = 0
-
-    cursor = db.clicks.find({
-        'ip': ip,
-        'inf': informer_id,
-        'dt': {'$lte': click_datetime, '$gte': (click_datetime - datetime.timedelta(weeks=1))}
-    }).limit(ip_max_clicks_for_one_day_all + ip_max_clicks_for_one_week_all)
-    for click in cursor:
-        if click.get('inf') == informer_id:
-            if click.get('cookie') == cookie:
-                if (click_datetime - click['dt']).days == 0:
-                    today_clicks += 1
-                    toweek_clicks += 1
-                else:
-                    toweek_clicks += 1
-
-                if click['offer'] == offer_id:
-                    unique = False
-            else:
-                if (click_datetime - click['dt']).days == 0:
-                    ip_today_clicks += 1
-                    ip_toweek_clicks += 1
-                else:
-                    ip_toweek_clicks += 1
-        else:
-            if click.get('cookie') == cookie:
-                if (click_datetime - click['dt']).days == 0:
-                    today_clicks_all += 1
-                    toweek_clicks_all += 1
-                else:
-                    toweek_clicks_all += 1
-
-                if click['offer'] == offer_id:
-                    unique = False
-            else:
-                if (click_datetime - click['dt']).days == 0:
-                    ip_today_clicks_all += 1
-                    ip_toweek_clicks_all += 1
-                else:
-                    ip_toweek_clicks_all += 1
-
-    print "Total clicks for day in informers = %s" % today_clicks
-    if today_clicks >= max_clicks_for_one_day:
-        error_id = 3
-        log_reject(u'Более %d переходов с РБ за сутки' % max_clicks_for_one_day)
-        unique = False
-        print 'Many Clicks for day to informer'
-        db.blacklist.ip.update_one({'ip': ip},
-                                   {'$set': {'dt': datetime.datetime.now()}},
-                                   upsert=True)
-
-    print "Total clicks for week in informers = %s" % toweek_clicks
-    if toweek_clicks >= max_clicks_for_one_week:
-        error_id = 4
-        log_reject(u'Более %d переходов с РБ за неделю' % max_clicks_for_one_week)
-        unique = False
-        print 'Many Clicks for week to informer'
-        db.blacklist.ip.update_one({'ip': ip},
-                                   {'$set': {'dt': datetime.datetime.now()}},
-                                   upsert=True)
-
-    print "Total clicks for day in all partners = %s" % today_clicks_all
-    if today_clicks_all >= max_clicks_for_one_day_all:
-        error_id = 5
-        log_reject(u'Более %d переходов с ПС за сутки' % max_clicks_for_one_day_all)
-        unique = False
-        print 'Many Clicks for day to all partners'
-        db.blacklist.ip.update_one({'ip': ip},
-                                   {'$set': {'dt': datetime.datetime.now()}},
-                                   upsert=True)
-
-    print "Total clicks for week in all partners = %s" % toweek_clicks_all
-    if toweek_clicks_all >= max_clicks_for_one_week_all:
-        error_id = 6
-        log_reject(u'Более %d переходов с ПС за неделю' % max_clicks_for_one_week_all)
-        unique = False
-        print 'Many Clicks for week to all partners'
-        db.blacklist.ip.update_one({'ip': ip},
-                                   {'$set': {'dt': datetime.datetime.now()}},
-                                   upsert=True)
-
-    print "Total clicks for day in informers by ip = %s" % today_clicks
-    if ip_today_clicks >= ip_max_clicks_for_one_day:
-        error_id = 3
-        log_reject(u'Более %d переходов с РБ за сутки по ip' % ip_max_clicks_for_one_day)
-        unique = False
-        print 'Many Clicks for day to informer by ip'
-        db.blacklist.ip.update_one({'ip': ip},
-                                   {'$set': {'dt': datetime.datetime.now()}},
-                                   upsert=True)
-
-    print "Total clicks for week in informers by ip = %s" % toweek_clicks
-    if ip_toweek_clicks >= ip_max_clicks_for_one_week:
-        error_id = 4
-        log_reject(u'Более %d переходов с РБ за неделю по ip' % ip_max_clicks_for_one_week)
-        unique = False
-        print 'Many Clicks for week to informer by ip'
-        db.blacklist.ip.update_one({'ip': ip},
-                                   {'$set': {'dt': datetime.datetime.now()}},
-                                   upsert=True)
-
-    print "Total clicks for day in all partners by ip = %s" % today_clicks_all
-    if ip_today_clicks_all >=ip_max_clicks_for_one_day_all:
-        error_id = 5
-        log_reject(u'Более %d переходов с ПС за сутки по ip' % ip_max_clicks_for_one_day_all)
-        unique = False
-        print 'Many Clicks for day to all partners by ip'
-        db.blacklist.ip.update_one({'ip': ip},
-                                   {'$set': {'dt': datetime.datetime.now()}},
-                                   upsert=True)
-
-    print "Total clicks for week in all partners by ip = %s" % toweek_clicks_all
-    if ip_toweek_clicks_all >= ip_max_clicks_for_one_week_all:
-        error_id = 6
-        log_reject(u'Более %d переходов с ПС за неделю по ip' % ip_max_clicks_for_one_week_all)
-        unique = False
-        print 'Many Clicks for week to all partners by ip'
-        db.blacklist.ip.update_one({'ip': ip},
-                                   {'$set': {'dt': datetime.datetime.now()}},
-                                   upsert=True)
-
-    cost_percent_click = check_block['cost_percent_click']
-    if check_block['block']:
-        print "Account block"
-        error_id = 7
-        log_reject(u'Account block')
-        return
-    if check_block['filter']:
-        print "Account filtered"
-        print check_block['time_filter_click']
-        if int(view_seconds) < int(check_block['time_filter_click']):
-            error_id = 8
-            log_reject(u"Click %s View Seconds %s" % (int(view_seconds), int(check_block['time_filter_click'])))
-            print "Click %s View Seconds %s" % (int(view_seconds), int(check_block['time_filter_click']))
-            return
-
     adload_cost = 0
     cost = 0
-    # Сохраняем клик в AdLoad
-    adload_ok = True
     try:
-        if unique:
-            print "Adload request"
-            adload_response = add_click(offer_id, campaign_id, click_datetime.isoformat(), social, cost_percent_click)
-            adload_ok = adload_response.get('ok', False)
-            print "Adload OK - %s" % adload_ok
-            if not adload_ok and 'error' in adload_response:
-                error_id = 0
-                log_error('Adload вернул ошибку: %s' %
-                          adload_response['error'])
-            adload_cost = adload_response.get('cost', 0)
-            print "Adload COST %s" % adload_cost
+        print "Adload request"
+        adload_response = add_click(offer_id, campaign_id, click_datetime.isoformat(), social, check_block['cost_percent_click'])
+        adload_ok = adload_response.get('ok', False)
+        print "Adload OK - %s" % adload_ok
+        if not adload_ok and 'error' in adload_response:
+            error_id = 0
+            log_error('Adload вернул ошибку: %s' %
+                      adload_response['error'])
+        adload_cost = adload_response.get('cost', 0)
+        print "Adload COST %s" % adload_cost
     except Exception, ex:
         adload_ok = False
         error_id = 0
@@ -596,7 +330,7 @@ def process_click(url,
                  "inf": informer_id,
                  "account_id": account_id,
                  "getmyad_user_id": getmyad_user_id,
-                 "unique": unique,
+                 "unique": True,
                  "cost": cost,
                  "adload_cost": adload_cost,
                  "income": adload_cost - cost,
@@ -613,7 +347,7 @@ def process_click(url,
                  "request": request
                  }
     if not social and adload_ok:
-        cost = _partner_click_cost(db, informer_id, adload_cost) if unique else 0
+        cost = _partner_click_cost(db, informer_id, adload_cost)
         print "Payable click at the price of %s" % cost
         click_obj['cost'] = cost
         click_obj['income'] = adload_cost - cost
@@ -621,8 +355,9 @@ def process_click(url,
         print "Social click"
     else:
         print "No click"
-        return
+        return False
     db.clicks.insert_one(click_obj)
 
     print "Click complite"
     print "/----------------------------------------------------------------------/"
+    return True
