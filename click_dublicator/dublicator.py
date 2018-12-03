@@ -22,11 +22,11 @@ def process():
     parser.add_argument('--count', help='count help', default=10)
     parser.add_argument('--limit', help='count help')
     parser.add_argument('--skip', help='count help')
-    parser.add_argument('--sleep', help='count help', default=0)
+    parser.add_argument('--sleep', help='count help', default=0.5)
     args = parser.parse_args()
     q = {}
     count = int(args.count)
-    sleep = int(args.sleep)
+    sleep = float(args.sleep)
     if args.skip:
         skip = int(args.skip)
     else:
@@ -79,8 +79,11 @@ def process():
         conformity = doc['conformity']
         social = doc['social']
         request = doc['request']
-        cliks.append([url, ip, datetime.now(), offer_id, campaign_id, informer_id,
-                      token, True, referer, user_agent, cookie, view_seconds, branch, conformity, social, request])
+        try:
+            cliks.append([url, ip, datetime.now(), offer_id, campaign_id, informer_id,
+                          token, True, referer, user_agent, cookie, view_seconds, branch, conformity, social, request])
+        except Exception as e:
+            print(e)
     c = 0
     print('%s click found for %s clic' % (len(cliks), count))
     while c < count:
@@ -94,7 +97,12 @@ def process():
             if clik[4] in campaignIdList:
                 clik[2] = datetime.now().replace(minute=random.randint(0, datetime.now().minute))
                 if c < count:
-                    if tasks.process_click(*clik):
+                    r = False
+                    try:
+                        r = tasks.process_click(*clik)
+                    except Exception as e:
+                        print(e)
+                    if r:
                         print('YES %s' % c)
                         c += 1
                 else:
