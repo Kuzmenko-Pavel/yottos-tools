@@ -24,7 +24,7 @@ for click in db.clicks.find({'ip': {'$in': list(ips)}}):
     clicks[click.get('ip')] += 1
 
 
-for user in db.users.find({'ips': {'$exists':True}}, {'ips': 1, 'login':1}):
+for user in db.users.find({'ips': {'$exists': True}}, {'ips': 1, 'login':1}):
     for ip in user.get('ips', []):
         if ip in clicks.keys():
             print '%s\t%s\t%s' % (user['login'], ip, clicks[ip])

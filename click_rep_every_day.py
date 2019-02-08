@@ -72,7 +72,7 @@ conn = MongoClient(host=main_db_host)
 db = conn.getmyad_db
 date = datetime.datetime.now()
 date_start = datetime.datetime(date.year, date.month, date.day, 0, 0)
-date_end = date_start - datetime.timedelta(days=14)
+date_end = date_start - datetime.timedelta(days=21)
 print('Report be %s - %s' % (date_end, date_start))
 
 informers = defaultdict(lambda: 'NOT TITLE')
