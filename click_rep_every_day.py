@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
-import sys
-
 import os
+import sys
 import time
 
 project_dir = os.path.dirname(os.path.realpath(__file__))
@@ -20,8 +19,8 @@ import StringIO
 import ftplib
 import requests
 import urllib3.contrib.pyopenssl
-urllib3.contrib.pyopenssl.inject_into_urllib3()
 
+urllib3.contrib.pyopenssl.inject_into_urllib3()
 
 sys.stdout = sys.stderr
 
@@ -100,34 +99,34 @@ pipeline = [
         }
     },
     {'$group':
-         {
-             '_id': {
-                 'campaign': '$campaignId',
-                 'adv': '$inf',
-                 'offer': '$offer',
-                 'cost': '$adload_cost',
-                 "day": {"$dayOfMonth": "$dt"},
-                 "month": {"$month": "$dt"}
-             },
-             'url': {'$last': '$url'},
-             'count': {
-              '$sum': {"$cond": [
-                  {"$eq": ["$unique", True]},
-                  1,
-                  0
-              ]
-              }
-             }
-,
-             'summa': {
-              '$sum': {"$cond": [
-                  {"$eq": ["$unique", True]},
-                  '$adload_cost',
-                  0
-              ]
-              }
-             }
-          }
+        {
+            '_id': {
+                'campaign': '$campaignId',
+                'adv': '$inf',
+                'offer': '$offer',
+                'cost': '$adload_cost',
+                "day": {"$dayOfMonth": "$dt"},
+                "month": {"$month": "$dt"}
+            },
+            'url': {'$last': '$url'},
+            'count': {
+                '$sum': {"$cond": [
+                    {"$eq": ["$unique", True]},
+                    1,
+                    0
+                ]
+                }
+            }
+            ,
+            'summa': {
+                '$sum': {"$cond": [
+                    {"$eq": ["$unique", True]},
+                    '$adload_cost',
+                    0
+                ]
+                }
+            }
+        }
     },
     {'$sort': {"_id.day": 1}}
 ]
@@ -169,12 +168,11 @@ for doc in cursor:
     data[account][date][campaign][offer][block][cost]['sum'] = sum
     # break
 
-
 acl = []
-for key, value in data.iteritems(): #account
+for key, value in data.iteritems():  # account
     wb = Workbook()
     sheet_count = 0
-    for k, v in value.iteritems(): #date
+    for k, v in value.iteritems():  # date
         ws = wb.create_sheet(k, sheet_count)
         row_count = 1
         ws.cell(row=row_count, column=1).value = 'Название компании'
@@ -208,9 +206,9 @@ for key, value in data.iteritems(): #account
         c6.alignment = Alignment(shrink_to_fit=False)
         ws.column_dimensions[c6.column].width = 15
         ws.row_dimensions[1].height = 25
-        for z, x in v.iteritems(): # campaign
-            for a, s in x.iteritems(): #offer
-                for q, w in s.iteritems(): #block
+        for z, x in v.iteritems():  # campaign
+            for a, s in x.iteritems():  # offer
+                for q, w in s.iteritems():  # block
                     for e, r in w.iteritems():  # cost
                         row_count += 1
                         ws.cell(row=row_count, column=1).value = z
@@ -228,13 +226,15 @@ for key, value in data.iteritems(): #account
     chdir(ftp, 'report')
     chdir(ftp, 'click')
     chdir(ftp, '%s-%s-%s' % (date_start.year, date_start.month, date_start.day))
-    ftp.storbinary('STOR ' + str(key) + '_%s-%s-%s' % (date_start.year, date_start.month, date_start.day) + '.xlsx', buf)
+    ftp.storbinary('STOR ' + str(key) + '_%s-%s-%s' % (date_start.year, date_start.month, date_start.day) + '.xlsx',
+                   buf)
     ftp.close()
     acl.append(key)
 
 html_tr = ' \n'.join(['<tr><td><a href="%s">%s</a></td></tr>' % (
     'https://cdn.yottos.com/report/click/%s-%s-%s/%s%s.xlsx' % (
-        date_start.year, date_start.month, date_start.day, x, '_%s-%s-%s' % (date_start.year, date_start.month, date_start.day)
+        date_start.year, date_start.month, date_start.day, x,
+        '_%s-%s-%s' % (date_start.year, date_start.month, date_start.day)
     ), accounts[x]
 ) for x in acl])
 html = '''
@@ -263,13 +263,14 @@ ftp = ftplib.FTP(host='srv-10.yottos.com')
 ftp.login('cdn', '$www-app$')
 chdir(ftp, 'report')
 chdir(ftp, 'click')
-ftp.storbinary('STOR index.html',  StringIO.StringIO(html))
+ftp.storbinary('STOR index.html', StringIO.StringIO(html))
 ftp.close()
 
 print('Report upload')
 time.sleep(400)
 headers = {'X-Cache-Update': '1'}
-cdns = ['http://cdn.srv-10.yottos.com', 'http://cdn.srv-11.yottos.com', 'http://cdn.srv-12.yottos.com', 'http://cdn.yottos.com', 'https://cdn.yottos.com']
+cdns = ['http://cdn.srv-10.yottos.com', 'http://cdn.srv-11.yottos.com', 'http://cdn.srv-12.yottos.com',
+        'http://cdn.yottos.com', 'https://cdn.yottos.com']
 
 for cdn in cdns:
     for item in acl:
