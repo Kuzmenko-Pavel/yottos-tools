@@ -171,3 +171,5 @@ crashlytics.properties
 crashlytics-build.properties
 fabric.properties
 /referer-none/data/
+/migration/informer_patterns/
+/migration/thematic/
