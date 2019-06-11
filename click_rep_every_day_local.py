@@ -25,21 +25,6 @@ urllib3.contrib.pyopenssl.inject_into_urllib3()
 sys.stdout = sys.stderr
 
 
-def chdir(ftp, dir):
-    """
-
-    Args:
-        ftp:
-        dir:
-    """
-    try:
-        ftp.cwd(dir)
-    except ftplib.all_errors as e:
-        ftp.mkd(dir)
-        print(e)
-        ftp.cwd(dir)
-
-
 def mssql_connection_adload():
     """
 
@@ -56,6 +41,11 @@ def mssql_connection_adload():
     conn.autocommit(True)
     return conn
 
+
+current_dir = os.path.dirname(os.path.abspath(__file__))
+rep_dir = os.path.join(current_dir, 'report')
+if not os.path.exists(rep_dir):
+    os.makedirs(rep_dir)
 
 accounts = defaultdict(lambda: 'NOT TITLE')
 connection_adload = mssql_connection_adload()
@@ -94,7 +84,7 @@ for item in db.campaign.archive.find({}, {'guid': True, 'title': True, 'account'
 pipeline = [
     {'$match':
         {
-            # 'dt': {'$gte': date_end, '$lt': date_start},
+            'dt': {'$gte': date_end, '$lt': date_start},
             'adload_cost': {'$gte': 0}
         }
     },
@@ -147,6 +137,7 @@ cursor = db.clicks.aggregate(pipeline=pipeline, allowDiskUse=True, useCursor=Tru
 c = 0
 for doc in cursor:
     date = '%s-%s' % (doc['_id']['month'], doc['_id']['day'])
+    # date = 'all'
     account = campaigns_by_account[doc['_id']['campaign']]
     campaign = campaigns[doc['_id']['campaign']]
     if campaigns_by_hide_marker[doc['_id']['campaign']]:
@@ -218,71 +209,7 @@ for key, value in data.iteritems():  # account
                         ws.cell(row=row_count, column=5).value = r['count']
                         ws.cell(row=row_count, column=6).value = r['sum']
         sheet_count += 1
-    buf = StringIO.StringIO()
-    wb.save(buf)
-    buf.seek(0)
-    ftp = ftplib.FTP(host='srv-10.yottos.com')
-    ftp.login('cdn', '$www-app$')
-    chdir(ftp, 'report')
-    chdir(ftp, 'click')
-    chdir(ftp, '%s-%s-%s' % (date_start.year, date_start.month, date_start.day))
-    ftp.storbinary('STOR ' + str(key) + '_%s-%s-%s' % (date_start.year, date_start.month, date_start.day) + '.xlsx',
-                   buf)
-    ftp.close()
-    acl.append(key)
-
-html_tr = ' \n'.join(['<tr><td><a href="%s">%s</a></td></tr>' % (
-    'https://cdn.yottos.com/report/click/%s-%s-%s/%s%s.xlsx' % (
-        date_start.year, date_start.month, date_start.day, x,
-        '_%s-%s-%s' % (date_start.year, date_start.month, date_start.day)
-    ), accounts[x]
-) for x in acl])
-html = '''
-<html>
-<head><title>Отчеты с %s по %s</title></head>
-<body bgcolor="white">
-<hr>
-<center>
-    <h3> Отчеты с %s по %s </h3>
-</center>
-<hr>
-<center>
-    <table>
-        %s
-    </table>
-</center>
-<hr>
-</body>
-</html>
-''' % ('%s-%s-%s' % (date_end.year, date_end.month, date_end.day),
-       '%s-%s-%s' % (date_start.year, date_start.month, date_start.day),
-       '%s-%s-%s' % (date_end.year, date_end.month, date_end.day),
-       '%s-%s-%s' % (date_start.year, date_start.month, date_start.day),
-       html_tr.encode('utf-8'))
-ftp = ftplib.FTP(host='srv-10.yottos.com')
-ftp.login('cdn', '$www-app$')
-chdir(ftp, 'report')
-chdir(ftp, 'click')
-ftp.storbinary('STOR index.html', StringIO.StringIO(html))
-ftp.close()
-
-print('Report upload')
-time.sleep(100)
-headers = {'X-Cache-Update': '1'}
-cdns = ['http://cdn.srv-10.yottos.com', 'http://cdn.srv-11.yottos.com', 'http://cdn.srv-12.yottos.com',
-        'http://cdn.yottos.com', 'https://cdn.yottos.com']
-
-for cdn in cdns:
-    for item in acl:
-        url = '%s%s' % (cdn, '/report/click/%s-%s-%s/%s%s.xlsx' % (
-            date_start.year,
-            date_start.month,
-            date_start.day,
-            item,
-            '_%s-%s-%s' % (date_start.year, date_start.month, date_start.day)))
-        r = requests.get(url, headers=headers, verify=False)
-        print('%s - %s' % (url, r.status_code))
-    url = '%s%s' % (cdn, '/report/click/index.html')
-    r = requests.get(url, headers=headers, verify=False)
-    print('%s - %s' % (url, r.status_code))
-print('Report create complite')
+    store_dir = os.path.join(rep_dir, '%s-%s-%s' % (date_start.year, date_start.month, date_start.day))
+    if not os.path.exists(store_dir):
+        os.makedirs(store_dir)
+    wb.save(os.path.join(store_dir, str(accounts[key]) + '_%s-%s-%s' % (date_start.year, date_start.month, date_start.day) + '.xlsx'))

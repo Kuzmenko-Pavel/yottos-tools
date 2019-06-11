@@ -1,23 +1,16 @@
 # This Python file uses the following encoding: utf-8
-import sys
-
 import os
+import sys
 
 project_dir = os.path.dirname(os.path.realpath(__file__))
 sys.path.append(project_dir)
 os.environ['PYTHON_EGG_CACHE'] = '/usr/lib/python2.7/dist-packages'
 import datetime
 from collections import defaultdict
-import urllib
-import urlparse
 import sys
-from pymongo import Connection
+from pymongo import MongoClient
 import xlwt
-import StringIO
-import ftplib
-import collections
 from openpyxl import Workbook
-
 
 sys.stdout = sys.stderr
 
@@ -38,7 +31,7 @@ font1.bold = False
 style1 = xlwt.XFStyle()
 style1.font = font1
 
-conn = Connection(host=main_db_host)
+conn = MongoClient(host=main_db_host)
 db = conn.getmyad_db
 informersBySite = {}
 informersByItemsNumber = {}
@@ -64,44 +57,44 @@ for informer in db.informer.find({},
         pass
 
 campaigns = {}
-for x in db.campaign.find({'account': '3e23c722-7446-4723-8985-b2fe120ac3a2'}):
+for x in db.campaign.find(
+        {'account': 'd82b0c93-0347-4e88-ac4c-2eedabcf61cd', 'guid': 'dbcb967a-c792-4199-9945-034c24909ddf'}):
     campaigns[x['guid']] = x['title']
-for x in db.campaign.archive.find({'account': '3e23c722-7446-4723-8985-b2fe120ac3a2'}):
+for x in db.campaign.archive.find(
+        {'account': 'd82b0c93-0347-4e88-ac4c-2eedabcf61cd', 'guid': 'dbcb967a-c792-4199-9945-034c24909ddf'}):
     campaigns[x['guid']] = x['title']
 
 campaign_list = [x for x, y in campaigns.iteritems()]
 
-
 pipeline = [
     {'$match':
-         {
-            # 'dt': {'$gte': datetime.datetime(2017, 11, 13, 0, 0), '$lt': datetime.datetime(2017, 11, 27, 0, 0)},
+        {
+            'dt': {'$gte': datetime.datetime(2019, 5, 21, 0, 0), '$lt': datetime.datetime(2019, 6, 11, 0, 0)},
             'campaignId': {'$in': campaign_list}
-         }
-     },
+        }
+    },
     {'$group':
-         {'_id': {'campaign': '$campaignId', 'adv': '$inf', "day":{"$dayOfMonth": "$dt"}, "month":{"$month": "$dt"}},
-          'count_u': {
+         {'_id': {'campaign': '$campaignId', 'adv': '$inf', "day": {"$dayOfMonth": "$dt"}, "month": {"$month": "$dt"}},
+          'count_all': {
+              '$sum': 1
+          },
+          'count': {
               '$sum': {"$cond": [
                   {"$eq": ["$unique", True]},
                   1,
-                  0
+                  1
               ]
               }
           },
-          'count_u_v': {
-              '$sum': {"$cond": {
-                'if': {'$and': [
-                    {"$eq": ["$unique", True]},
-                    {"$eq": [{"$substr": ["$url", 0, 7]}, "v3track"]},
-                ]},
-                  'then': 1,
-                  'else': 0
-                }
+          'summa': {
+              '$sum': {"$cond": [
+                  {"$eq": ["$unique", True]},
+                  '$adload_cost',
+                  0
+              ]
               }
-          },
-          'count': {'$sum': 1}
-        }
+          }
+          }
      },
     {'$sort': {"_id.day": 1}}
 ]
@@ -112,39 +105,27 @@ for doc in cursor:
     inf = informersBySite.get(doc['_id']['adv'], ['DELETED', ''])[0]
     d = "%s-%s" % (doc['_id']['month'], doc['_id']['day'])
     camp = campaigns[doc['_id']['campaign']]
-    count = stats[d][camp][inf]['count']
-    count_u = stats[d][camp][inf]['count_u']
-    count_u_v = stats[d][camp][inf]['count_u_v']
-    stats[d][camp][inf]['count'] = count + doc['count']
-    stats[d][camp][inf]['count_u'] = count + doc['count_u']
-    stats[d][camp][inf]['count_u_v'] = count + doc['count_u_v']
-
+    stats[d][camp][inf]['count_all'] += doc['count_all']
+    stats[d][camp][inf]['count'] += doc['count']
+    stats[d][camp][inf]['summa'] += doc['summa']
 
 wb = Workbook()
 
 for x, y in stats.iteritems():
     row = 0
     ws = wb.create_sheet(title=x)
-    row += 1
-    row_d = row
-    sym_d = 0
-    ws.cell(row=row, column=1).value = x
     for k, v in y.iteritems():
         row += 1
-        row_c = row
-        sym_c = 0
-        ws.cell(row=row, column=2).value = k
-        for z, x in v.iteritems():
+        ws.cell(row=row, column=1).value = k
+        ws.cell(row=row, column=2).value = 'site'
+        ws.cell(row=row, column=3).value = 'all click'
+        ws.cell(row=row, column=4).value = 'paid click'
+        ws.cell(row=row, column=5).value = 'sum'
+        for z, c in v.iteritems():
             row += 1
-            ws.cell(row=row, column=3).value = z
-            ws.cell(row=row, column=4).value = x['count']
-            ws.cell(row=row, column=5).value = x['count_u']
-            ws.cell(row=row, column=6).value = x['count_u_v']
-            sym_d += x['count']
-            sym_c += x['count']
-        ws.cell(row=row_c, column=3).value = sym_c
-    ws.cell(row=row_d, column=2).value = sym_d
-    row += 1
-    row += 1
+            ws.cell(row=row, column=2).value = z
+            ws.cell(row=row, column=3).value = c['count_all']
+            ws.cell(row=row, column=4).value = c['count']
+            ws.cell(row=row, column=5).value = c['summa']
 
-wb.save('misha.xlsx')
+wb.save('rep.xlsx')
