@@ -1,2 +1,2 @@
 #!/bin/sh
-mongo localhost/getmyad ./check_local_mongo.js
+mongo srv-2.yottos.com:27017/adv_log ./check_local_mongo.js

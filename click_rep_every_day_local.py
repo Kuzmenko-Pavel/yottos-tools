@@ -61,7 +61,8 @@ conn = MongoClient(host=main_db_host)
 db = conn.getmyad_db
 date = datetime.datetime.now()
 date_start = datetime.datetime(date.year, date.month, date.day, 0, 0)
-date_end = date_start - datetime.timedelta(days=21)
+date_end = date_start - datetime.timedelta(days=10)
+date_start = date_start + datetime.timedelta(days=1)
 print('Report be %s - %s' % (date_end, date_start))
 
 informers = defaultdict(lambda: 'NOT TITLE')
@@ -84,7 +85,7 @@ for item in db.campaign.archive.find({}, {'guid': True, 'title': True, 'account'
 pipeline = [
     {'$match':
         {
-            'dt': {'$gte': date_end, '$lt': date_start},
+            'dt': {'$gte': date_end, '$lte': date_start},
             'adload_cost': {'$gte': 0}
         }
     },
