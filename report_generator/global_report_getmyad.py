@@ -163,7 +163,8 @@ def generate_global_report_getmyad(db_session, store_dir, rates):
         wb = Workbook()
         sheet_count = 0
         row_count = 1
-        ws = wb.create_sheet('Аккаунт - %s' % account.name, sheet_count)
+        name = 'Аккаунт - %s' % account.name.replace('/', '').replace('*', 'x').replace(':', '_')
+        ws = wb.create_sheet(name, sheet_count)
         ws.cell(row=row_count, column=1).value = 'ДАТА'
         ws.cell(row=row_count, column=2).value = 'Показы'
         ws.cell(row=row_count, column=3).value = 'Гаранты'
@@ -181,7 +182,8 @@ def generate_global_report_getmyad(db_session, store_dir, rates):
         sheet_count += 1
         for s in data['site'].itervalues():
             row_count = 1
-            ws = wb.create_sheet('Сайт - %s' % s['name'], sheet_count)
+            name = 'Сайт - %s' % s['name'].replace('/','').replace('*', 'x').replace(':', '_')
+            ws = wb.create_sheet(name, sheet_count)
             ws.cell(row=row_count, column=1).value = 'ДАТА'
             ws.cell(row=row_count, column=2).value = 'Показы'
             ws.cell(row=row_count, column=3).value = 'Гаранты'
@@ -200,7 +202,8 @@ def generate_global_report_getmyad(db_session, store_dir, rates):
 
         for b in data['block'].itervalues():
             row_count = 1
-            ws = wb.create_sheet('Блок - %s' % b['name'], sheet_count)
+            name = 'Блок - %s' % b['name'].replace('/', '').replace('*', 'x').replace(':', '_')
+            ws = wb.create_sheet(name, sheet_count)
             ws.cell(row=row_count, column=1).value = 'ДАТА'
             ws.cell(row=row_count, column=2).value = 'Показы'
             ws.cell(row=row_count, column=3).value = 'Гаранты'
