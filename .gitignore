@@ -179,3 +179,4 @@ fabric.properties
 *.html
 *.json
 *.gz
+*.access.log*
