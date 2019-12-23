@@ -173,3 +173,9 @@ fabric.properties
 /referer-none/data/
 /migration/informer_patterns/
 /migration/thematic/
+
+*.zip
+*.xlsx
+*.html
+*.json
+*.gz
